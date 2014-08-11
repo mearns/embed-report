@@ -1,8 +1,6 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
   <!--
     This jelly script is used for per-project configuration.
-
-    See global.jelly for a general discussion about jelly script.
   -->
 
   <!--
@@ -10,6 +8,10 @@
     When submitted, it will be passed to the corresponding constructor parameter.
   -->
   <f:entry title="Name" field="name">
-    <f:textbox />
+    <f:textbox default="Report" />
+  </f:entry>
+
+  <f:entry title="File" field="file">
+    <f:textbox default="report.html" />
   </f:entry>
 </j:jelly>
