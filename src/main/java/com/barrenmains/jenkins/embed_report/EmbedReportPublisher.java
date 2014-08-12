@@ -7,6 +7,9 @@ import hudson.util.FormValidation;
 import hudson.model.AbstractBuild;
 import hudson.model.BuildListener;
 import hudson.model.AbstractProject;
+import hudson.model.DirectoryBrowserSupport;
+import hudson.model.Action;
+import hudson.model.ProminentProjectAction;
 import hudson.model.Result;
 import hudson.tasks.Publisher;
 import hudson.tasks.BuildStepDescriptor;
@@ -15,9 +18,11 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerResponse;
 
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.io.File;
 import java.util.*;
 
 /**
@@ -66,6 +71,18 @@ public class EmbedReportPublisher extends Publisher
         return BuildStepMonitor.NONE;
     }
 
+    protected FilePath[] getTargetPaths(AbstractProject project) {
+        FilePath projRoot = new FilePath(project.getRootDir());
+
+        FilePath targetDir = projRoot.child("embed_report").child(this.name);
+        FilePath targetFile = targetDir.child((new File(this.file)).getName());
+
+        FilePath[] paths = new FilePath[2];
+        paths[0] = targetDir;
+        paths[1] = targetFile;
+
+        return paths;
+    }
 
     @Override
     public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
@@ -75,15 +92,13 @@ public class EmbedReportPublisher extends Publisher
 
         listener.getLogger().println(TAG + "Running...");
         
-        AbstractProject project = build.getProject();
-        FilePath projRoot = new FilePath(project.getRootDir());
-        FilePath ws = build.getWorkspace();
-
         //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
-        FilePath sourceFile = ws.child(this.file);
-
-        FilePath targetDir = projRoot.child("embed_report").child(this.name);
-        FilePath targetFile = targetDir.child(sourceFile.getName());
+        //TODO: May need to do it directly on this.file, early on.
+        FilePath sourceFile = build.getWorkspace().child(this.file);
+        
+        FilePath[] paths = this.getTargetPaths(build.getProject());
+        FilePath targetDir = paths[0];
+        FilePath targetFile = paths[1];
 
         listener.getLogger().println(TAG + "Archiving " + sourceFile + " to " + targetFile + ".");
         if(!sourceFile.exists()) {
@@ -106,6 +121,19 @@ public class EmbedReportPublisher extends Publisher
         //XXX:
         return true;
     }
+
+    /**
+     * Returns a set of actions to be added to the Project's main page.
+     * These actions provide behaviors and/or UI components to the Job's top-level
+     * page. See, for instance, <HtmlAction>.
+     */
+    @Override
+    public Collection<? extends Action> getProjectActions(AbstractProject project) {
+        ArrayList<Action> actions = new ArrayList<Action>();
+        actions.add(new HtmlAction(project));
+        return actions;
+    }
+
 
     // Overridden for better type safety.
     // If your plugin doesn't really define any property on Descriptor,
@@ -147,5 +175,61 @@ public class EmbedReportPublisher extends Publisher
             return "Embed Reports";
         }
     }
+
+
+    /**
+     * An action for the publisher. Instances of Action returns by <getProjectActions>
+     * can show up in the Project/Job top-page. The <getIconFileName>, <getDisplayName>,
+     * and <getUrlName> are used to add an item for the action to the left-hand
+     * menu in the Job's page. 
+     *
+     * By extending <ProminentProjectAction>, we are added to the table/list of
+     * prominent links at the top of the Job's page as well.
+     *
+     * If <getIconFileName> returns null, we aren't added to either location.
+     *
+     */
+    public class HtmlAction implements ProminentProjectAction
+    {
+
+        protected AbstractProject fProject;
+
+        public HtmlAction(AbstractProject project) {
+            this.fProject = project;
+        }
+
+        public AbstractProject getProject() {
+            return this.fProject ;
+        }
+
+        public String getIconFileName() {
+            return "graph.gif" ;
+        }
+
+        public String getDisplayName() {
+            return "View " + EmbedReportPublisher.this.getName();
+        }
+
+        public String getUrlName() {
+            //TODO: This is not the right way to create nested URL namespaces. Not sure if I can.
+            //return "embed_report/" + EmbedReportPublisher.this.getName();
+            return "embed-" + EmbedReportPublisher.this.getName();
+        }
+
+        /**
+         * Serves the URL subspace specifed by <getUrlName>.
+         */
+        public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+            FilePath[] paths = EmbedReportPublisher.this.getTargetPaths(this.fProject);
+            FilePath targetDir = paths[0];
+            FilePath targetFile = paths[1];
+
+            DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(this,
+                targetFile, EmbedReportPublisher.this.getName(), "graph.gif", true
+            );
+            dbs.generateResponse(req, rsp, this);
+        }
+    }
+
 }
 
