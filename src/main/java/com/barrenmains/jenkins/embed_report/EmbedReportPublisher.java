@@ -229,6 +229,11 @@ public class EmbedReportPublisher extends Publisher
             return this.getUrlName();
         }
 
+        public String getInlineStyle() {
+            //TODO: Make at least some of this (height) user-configurable.
+            return "width: 95%; border: 1px solid #666; height: 300px;";
+        }
+
         /**
          * Serves the URL subspace specifed by <getUrlName>.
          */
