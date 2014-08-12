@@ -1,7 +1,11 @@
 syntax: glob
 
 #Build output
-output/*
+work/*
+target/*
+
+#Vim error file.
+errors.err
 
 #Vim swap files.
 .*.swp
