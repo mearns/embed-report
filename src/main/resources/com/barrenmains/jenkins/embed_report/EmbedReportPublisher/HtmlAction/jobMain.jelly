@@ -1,0 +1,4 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <h2 class='embed-report-title'>${it.getTitle()}</h2>
+    <iframe style='width:100%; border:none; height: 600px;' src='${it.getUrl()}'></iframe>
+</j:jelly>

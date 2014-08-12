@@ -193,9 +193,14 @@ public class EmbedReportPublisher extends Publisher
     {
 
         protected AbstractProject fProject;
+        protected FilePath fTargetDir;
+        protected FilePath fTargetFile;
 
         public HtmlAction(AbstractProject project) {
             this.fProject = project;
+            FilePath[] paths = EmbedReportPublisher.this.getTargetPaths(this.fProject);
+            this.fTargetDir = paths[0];
+            this.fTargetFile = paths[1];
         }
 
         public AbstractProject getProject() {
@@ -216,16 +221,20 @@ public class EmbedReportPublisher extends Publisher
             return "embed-" + EmbedReportPublisher.this.getName();
         }
 
+        public String getTitle() {
+            return EmbedReportPublisher.this.getName();
+        }
+
+        public String getUrl() {
+            return this.getUrlName();
+        }
+
         /**
          * Serves the URL subspace specifed by <getUrlName>.
          */
         public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-            FilePath[] paths = EmbedReportPublisher.this.getTargetPaths(this.fProject);
-            FilePath targetDir = paths[0];
-            FilePath targetFile = paths[1];
-
-            DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(this,
-                targetFile, EmbedReportPublisher.this.getName(), "graph.gif", true
+            DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
+                this, this.fTargetFile, EmbedReportPublisher.this.getName(), "graph.gif", true
             );
             dbs.generateResponse(req, rsp, this);
         }
