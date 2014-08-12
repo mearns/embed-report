@@ -2,10 +2,12 @@ package com.barrenmains.jenkins.embed_report;
 
 import hudson.Launcher;
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.util.FormValidation;
 import hudson.model.AbstractBuild;
 import hudson.model.BuildListener;
 import hudson.model.AbstractProject;
+import hudson.model.Result;
 import hudson.tasks.Publisher;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
@@ -74,8 +76,34 @@ public class EmbedReportPublisher extends Publisher
         listener.getLogger().println(TAG + "Running...");
         
         AbstractProject project = build.getProject();
+        FilePath projRoot = new FilePath(project.getRootDir());
+        FilePath ws = build.getWorkspace();
 
-        //TODO:
+        //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
+        FilePath sourceFile = ws.child(this.file);
+
+        FilePath targetDir = projRoot.child("embed_report").child(this.name);
+        FilePath targetFile = targetDir.child(sourceFile.getName());
+
+        listener.getLogger().println(TAG + "Archiving " + sourceFile + " to " + targetFile + ".");
+        if(!sourceFile.exists()) {
+            listener.error("Specified report file '" + this.file + "' does not exist.");
+            build.setResult(Result.FAILURE);
+            return true;
+        }
+
+        //Make sure output directory exists.
+        //TODO: Maybe delete other files in here?
+        if(!targetDir.exists()) {
+            targetDir.mkdirs();
+        } 
+
+        //Copy to dest
+        sourceFile.copyTo(targetFile);
+        
+        listener.getLogger().println(TAG + "Archive complete.");
+
+        //XXX:
         return true;
     }
 
