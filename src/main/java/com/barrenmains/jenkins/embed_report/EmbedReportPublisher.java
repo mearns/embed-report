@@ -50,12 +50,14 @@ public class EmbedReportPublisher extends Publisher
 
     private final String name;
     private final String file;
+    private final int height;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public EmbedReportPublisher(String name, String file) {
+    public EmbedReportPublisher(String name, String file, int height) {
         this.name = name;
         this.file = file;
+        this.height = height;
     }
 
     public String getName() {
@@ -64,6 +66,10 @@ public class EmbedReportPublisher extends Publisher
 
     public String getFile() {
         return this.file;
+    }
+
+    public int getHeight() {
+        return this.height;
     }
 
     public BuildStepMonitor getRequiredMonitorService() {
@@ -231,7 +237,7 @@ public class EmbedReportPublisher extends Publisher
 
         public String getInlineStyle() {
             //TODO: Make at least some of this (height) user-configurable.
-            return "width: 95%; border: 1px solid #666; height: 300px;";
+            return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.this.getHeight() + "px;";
         }
 
         /**

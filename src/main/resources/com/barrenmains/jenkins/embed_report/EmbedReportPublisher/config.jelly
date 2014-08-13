@@ -14,4 +14,10 @@
     <f:entry title='Path' field='file'>
         <f:textbox default='report.html' />
     </f:entry>
+
+    <f:advanced>
+        <f:entry title='Iframe Height' field='height'>
+            <f:number default='300' /> px
+        </f:entry>
+    </f:advanced>
 </j:jelly>
