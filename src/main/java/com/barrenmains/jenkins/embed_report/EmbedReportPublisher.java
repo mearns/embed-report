@@ -16,6 +16,7 @@ import hudson.model.Result;
 import hudson.tasks.Publisher;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
+import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
@@ -61,19 +62,34 @@ public class EmbedReportPublisher extends Publisher
      */
     public static class Target extends AbstractDescribableImpl<Target>
     {
+        public static enum Association {
+            PROJECT_ONLY("project only"),
+            BUILD_ONLY("build only"),
+            BOTH("both project and build");
+
+            protected String fLabel;
+
+            Association(String label) {
+                this.fLabel = label;
+            }
+
+            public String toString() {
+                return this.fLabel;
+            }
+        }
+
         public String name;
         public String file;
         public int height;
+        public Association association;
 
         // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
         @DataBoundConstructor
-        public Target(String name, String file, int height) {
+        public Target(String name, String file, int height, String association) {
             this.name = name;
             this.file = file;
             this.height = height;
-            if(this.name == null) {
-                throw new RuntimeException("Name is NULL!");
-            }
+            this.association = Association.valueOf(association);
         }
 
         public String getName() {
@@ -88,11 +104,25 @@ public class EmbedReportPublisher extends Publisher
             return this.height;
         }
 
+        public String getAssociation() {
+            return this.association.name();
+        }
+
         @Extension
         public static class DescriptorImpl extends Descriptor<Target> {
             @Override
             public String getDisplayName() {
                 return "";
+            }
+
+            public ListBoxModel doFillAssociationItems()
+            {
+                ListBoxModel items = new ListBoxModel();
+                for (Association a : Association.values())
+                {
+                    items.add(a.toString(), a.name());
+                }
+                return items;
             }
         }
 
@@ -116,12 +146,37 @@ public class EmbedReportPublisher extends Publisher
             return paths;
         }
 
+        public FilePath getTargetFile(AbstractProject project)
+        {
+            return this.getTargetPaths(project)[1];
+        }
+
+        public FilePath getSourceFile(AbstractProject project)
+        {
+            return this.getSourceFile(project.getSomeWorkspace());
+        }
+
+        public FilePath getSourceFile(AbstractBuild build)
+        {
+            return this.getSourceFile(build.getWorkspace());
+        }
+
+        protected FilePath getSourceFile(FilePath workspace)
+        {
+            if (workspace == null) {
+                return null;
+            }
+            //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
+            //TODO: May need to do it directly on this.file, early on.
+            //
+            //TODO: Enforce it is within the workspace.
+            return workspace.child(this.file);
+        }
+
         public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
             throws InterruptedException, IOException
         {
-            //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
-            //TODO: May need to do it directly on this.file, early on.
-            FilePath sourceFile = build.getWorkspace().child(this.file);
+            FilePath sourceFile = this.getSourceFile(build);
             
             FilePath[] paths = this.getTargetPaths(build.getProject());
             FilePath targetDir = paths[0];
@@ -145,7 +200,8 @@ public class EmbedReportPublisher extends Publisher
             return true;
         }
 
-        public Collection<? extends Action> getProjectActions(AbstractProject project) {
+        public Collection<? extends Action> getProjectActions(AbstractProject project)
+        {
             ArrayList<Action> actions = new ArrayList<Action>();
             actions.add(new HtmlAction(project));
             return actions;
@@ -209,6 +265,14 @@ public class EmbedReportPublisher extends Publisher
             public String getInlineStyle() {
                 return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.Target.this.getHeight() + "px;";
             }
+            
+            public String getHtml() throws IOException, InterruptedException
+            {
+                if(this.fTargetFile == null || !this.fTargetFile.exists()) {
+                    return "<p class='no-report'>Report not generated.</p>";
+                }
+                return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
+            }
 
             /**
              * Serves the URL subspace specifed by <getUrlName>.
@@ -249,7 +313,7 @@ public class EmbedReportPublisher extends Publisher
         //This is where we run the step.
 
         listener.getLogger().println(TAG + "Running...");
-        
+
         for(Target target: this.targets)
         {
             listener.getLogger().println(TAG + "Processing target '" + target.getName() + "'...");
@@ -267,7 +331,8 @@ public class EmbedReportPublisher extends Publisher
      * page. See, for instance, <HtmlAction>.
      */
     @Override
-    public Collection<? extends Action> getProjectActions(AbstractProject project) {
+    public Collection<? extends Action> getProjectActions(AbstractProject project)
+    {
         ArrayList<Action> actions = new ArrayList<Action>();
         for(Target target: this.targets) {
             actions.addAll(target.getProjectActions(project));

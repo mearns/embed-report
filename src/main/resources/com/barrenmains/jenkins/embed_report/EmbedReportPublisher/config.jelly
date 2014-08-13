@@ -4,11 +4,13 @@
     -->
 
     <f:entry>
-        <f:repeatable field='targets'>
+        <f:repeatable field='targets' minimum='1'>
 
             <f:textbox field='name' default='Report' />
             <f:textbox field='file' default='report.html' />
-            <f:number field='height' default='300' /> px
+            <f:select field='association' />
+
+            <f:number field='height' default='300' />
 
             <f:repeatableDeleteButton value='Delete report' />
 
