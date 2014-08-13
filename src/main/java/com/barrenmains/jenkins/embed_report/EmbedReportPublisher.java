@@ -26,6 +26,7 @@ import org.kohsuke.stapler.StaplerResponse;
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.File;
+import java.io.PrintWriter;
 import java.util.*;
 
 /**
@@ -266,22 +267,33 @@ public class EmbedReportPublisher extends Publisher
                 return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.Target.this.getHeight() + "px;";
             }
             
+            public boolean reportReady() throws IOException, InterruptedException {
+                return (this.fTargetFile != null && this.fTargetFile.exists());
+            }
+
             public String getHtml() throws IOException, InterruptedException
             {
-                if(this.fTargetFile == null || !this.fTargetFile.exists()) {
-                    return "<p class='no-report'>Report not generated.</p>";
+                if(this.reportReady()) {
+                    return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
                 }
-                return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
+                return "<p class='no-report'>Report not generated.</p>";
             }
 
             /**
              * Serves the URL subspace specifed by <getUrlName>.
              */
-            public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-                DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
-                    this, this.fTargetFile, EmbedReportPublisher.Target.this.getName(), "graph.gif", true
-                );
-                dbs.generateResponse(req, rsp, this);
+            public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, InterruptedException, ServletException {
+                if(this.reportReady()) {
+                    DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
+                        this, this.fTargetFile, EmbedReportPublisher.Target.this.getName(), "graph.gif", true
+                    );
+                    dbs.generateResponse(req, rsp, this);
+                } else {
+                    PrintWriter writer = rsp.getWriter();
+                    writer.println("<html><head><title>Report Not Generated</title></head><body><h1>Report Not Generated</h1>");
+                    writer.println("<p>The report has not been generated, either because the job has never been run, or because it failed to generate the report.</p>");
+                    writer.flush();
+                }
             }
         }
 
@@ -294,7 +306,7 @@ public class EmbedReportPublisher extends Publisher
         }
         else {
             this.targets = new ArrayList<Target>(targets);
-        }
+                                       }
     }
 
     public List<Target> getTargets() {
