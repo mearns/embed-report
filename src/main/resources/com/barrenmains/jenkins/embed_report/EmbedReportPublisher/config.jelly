@@ -3,21 +3,16 @@
     This jelly script is used for per-project configuration.
     -->
 
-    <!--
-    Creates a text field that shows the value of the "name" property.
-    When submitted, it will be passed to the corresponding constructor parameter.
-    -->
-    <f:entry title='Name' field='name'>
-        <f:textbox default='Report' />
+    <f:entry>
+        <f:repeatable field='targets'>
+
+            <f:textbox field='name' default='Report' />
+            <f:textbox field='file' default='report.html' />
+            <f:number field='height' default='300' /> px
+
+            <f:repeatableDeleteButton value='Delete report' />
+
+        </f:repeatable>
     </f:entry>
 
-    <f:entry title='Path' field='file'>
-        <f:textbox default='report.html' />
-    </f:entry>
-
-    <f:advanced>
-        <f:entry title='Iframe Height' field='height'>
-            <f:number default='300' /> px
-        </f:entry>
-    </f:advanced>
 </j:jelly>

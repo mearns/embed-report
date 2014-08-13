@@ -7,8 +7,10 @@ import hudson.util.FormValidation;
 import hudson.model.AbstractBuild;
 import hudson.model.BuildListener;
 import hudson.model.AbstractProject;
+import hudson.model.AbstractDescribableImpl;
 import hudson.model.DirectoryBrowserSupport;
 import hudson.model.Action;
+import hudson.model.Descriptor;
 import hudson.model.ProminentProjectAction;
 import hudson.model.Result;
 import hudson.tasks.Publisher;
@@ -48,46 +50,196 @@ public class EmbedReportPublisher extends Publisher
 
     public static final String TAG = "[embed_report]";
 
-    private final String name;
-    private final String file;
-    private final int height;
+    private List<Target> targets;
 
-    // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
+
+    /**
+     * This is the class the implements each of the reports to be generated.
+     * Each of the <code>f:repeatable</code> entries from config.jelly will be
+     * used to instantiate one of these, and then a list will be past to the
+     * {@link EmbedReportPublisher} constructor.
+     */
+    public static class Target extends AbstractDescribableImpl<Target>
+    {
+        public String name;
+        public String file;
+        public int height;
+
+        // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
+        @DataBoundConstructor
+        public Target(String name, String file, int height) {
+            this.name = name;
+            this.file = file;
+            this.height = height;
+            if(this.name == null) {
+                throw new RuntimeException("Name is NULL!");
+            }
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public String getFile() {
+            return this.file;
+        }
+
+        public int getHeight() {
+            return this.height;
+        }
+
+        @Extension
+        public static class DescriptorImpl extends Descriptor<Target> {
+            @Override
+            public String getDisplayName() {
+                return "";
+            }
+        }
+
+        /**
+         * Helper function to get the {@link FilePaths} corresponding to destination
+         * of this target. Returns an array of two FilePath objects, the first is
+         * the target directory, the second is the target file itself (i.e., the archived
+         * report).
+         */
+        protected FilePath[] getTargetPaths(AbstractProject project) {
+            FilePath projRoot = new FilePath(project.getRootDir());
+            FilePath mine = projRoot.child("embed_report");
+
+            FilePath targetDir = mine.child(this.name);
+            FilePath targetFile = targetDir.child((new File(this.file)).getName());
+
+            FilePath[] paths = new FilePath[2];
+            paths[0] = targetDir;
+            paths[1] = targetFile;
+
+            return paths;
+        }
+
+        public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
+            throws InterruptedException, IOException
+        {
+            //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
+            //TODO: May need to do it directly on this.file, early on.
+            FilePath sourceFile = build.getWorkspace().child(this.file);
+            
+            FilePath[] paths = this.getTargetPaths(build.getProject());
+            FilePath targetDir = paths[0];
+            FilePath targetFile = paths[1];
+
+            if(!sourceFile.exists()) {
+                listener.error("Specified report file '" + this.file + "' does not exist.");
+                build.setResult(Result.FAILURE);
+                return true;
+            }
+
+            //Make sure output directory exists.
+            //TODO: Maybe delete other files in here?
+            if(!targetDir.exists()) {
+                targetDir.mkdirs();
+            } 
+
+            //Copy to dest
+            sourceFile.copyTo(targetFile);
+
+            return true;
+        }
+
+        public Collection<? extends Action> getProjectActions(AbstractProject project) {
+            ArrayList<Action> actions = new ArrayList<Action>();
+            actions.add(new HtmlAction(project));
+            return actions;
+        }
+
+
+        /**
+         * An action for the publisher. Instances of Action returns by <getProjectActions>
+         * can show up in the Project/Job top-page. The <getIconFileName>, <getDisplayName>,
+         * and <getUrlName> are used to add an item for the action to the left-hand
+         * menu in the Job's page. 
+         *
+         * By extending <ProminentProjectAction>, we are added to the table/list of
+         * prominent links at the top of the Job's page as well.
+         *
+         * If <getIconFileName> returns null, we aren't added to either location.
+         *
+         */
+        public class HtmlAction implements ProminentProjectAction
+        {
+
+            protected AbstractProject fProject;
+            protected FilePath fTargetDir;
+            protected FilePath fTargetFile;
+
+            public HtmlAction(AbstractProject project) {
+                this.fProject = project;
+
+                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(project);
+                this.fTargetDir = paths[0];
+                this.fTargetFile = paths[1];
+            }
+
+            public AbstractProject getProject() {
+                return this.fProject ;
+            }
+
+            public String getIconFileName() {
+                //TODO: Configurable Icon?
+                return "graph.gif" ;
+            }
+
+            public String getDisplayName() {
+                return "View " + EmbedReportPublisher.Target.this.getName();
+            }
+
+            public String getUrlName() {
+                //TODO: This is not the right way to create nested URL namespaces. Not sure if I can.
+                //return "embed_report/" + EmbedReportPublisher.Target.this.getName();
+                return "embed-" + EmbedReportPublisher.Target.this.getName();
+            }
+
+            public String getTitle() {
+                return EmbedReportPublisher.Target.this.getName();
+            }
+
+            public String getUrl() {
+                return this.getUrlName();
+            }
+
+            public String getInlineStyle() {
+                return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.Target.this.getHeight() + "px;";
+            }
+
+            /**
+             * Serves the URL subspace specifed by <getUrlName>.
+             */
+            public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+                DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
+                    this, this.fTargetFile, EmbedReportPublisher.Target.this.getName(), "graph.gif", true
+                );
+                dbs.generateResponse(req, rsp, this);
+            }
+        }
+
+    }
+
     @DataBoundConstructor
-    public EmbedReportPublisher(String name, String file, int height) {
-        this.name = name;
-        this.file = file;
-        this.height = height;
+    public EmbedReportPublisher(List<Target> targets) {
+        if (targets == null) {
+            this.targets = new ArrayList<Target>(0);
+        }
+        else {
+            this.targets = new ArrayList<Target>(targets);
+        }
     }
 
-    public String getName() {
-        return this.name;
-    }
-
-    public String getFile() {
-        return this.file;
-    }
-
-    public int getHeight() {
-        return this.height;
+    public List<Target> getTargets() {
+        return this.targets;
     }
 
     public BuildStepMonitor getRequiredMonitorService() {
         //We don't require any synchronization with other builds or steps.
         return BuildStepMonitor.NONE;
-    }
-
-    protected FilePath[] getTargetPaths(AbstractProject project) {
-        FilePath projRoot = new FilePath(project.getRootDir());
-
-        FilePath targetDir = projRoot.child("embed_report").child(this.name);
-        FilePath targetFile = targetDir.child((new File(this.file)).getName());
-
-        FilePath[] paths = new FilePath[2];
-        paths[0] = targetDir;
-        paths[1] = targetFile;
-
-        return paths;
     }
 
     @Override
@@ -98,33 +250,14 @@ public class EmbedReportPublisher extends Publisher
 
         listener.getLogger().println(TAG + "Running...");
         
-        //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
-        //TODO: May need to do it directly on this.file, early on.
-        FilePath sourceFile = build.getWorkspace().child(this.file);
-        
-        FilePath[] paths = this.getTargetPaths(build.getProject());
-        FilePath targetDir = paths[0];
-        FilePath targetFile = paths[1];
-
-        listener.getLogger().println(TAG + "Archiving " + sourceFile + " to " + targetFile + ".");
-        if(!sourceFile.exists()) {
-            listener.error("Specified report file '" + this.file + "' does not exist.");
-            build.setResult(Result.FAILURE);
-            return true;
+        for(Target target: this.targets)
+        {
+            listener.getLogger().println(TAG + "Processing target '" + target.getName() + "'...");
+            target.perform(build, launcher, listener);
         }
-
-        //Make sure output directory exists.
-        //TODO: Maybe delete other files in here?
-        if(!targetDir.exists()) {
-            targetDir.mkdirs();
-        } 
-
-        //Copy to dest
-        sourceFile.copyTo(targetFile);
         
-        listener.getLogger().println(TAG + "Archive complete.");
+        listener.getLogger().println(TAG + "Complete.");
 
-        //XXX:
         return true;
     }
 
@@ -136,7 +269,9 @@ public class EmbedReportPublisher extends Publisher
     @Override
     public Collection<? extends Action> getProjectActions(AbstractProject project) {
         ArrayList<Action> actions = new ArrayList<Action>();
-        actions.add(new HtmlAction(project));
+        for(Target target: this.targets) {
+            actions.addAll(target.getProjectActions(project));
+        }
         return actions;
     }
 
@@ -179,74 +314,6 @@ public class EmbedReportPublisher extends Publisher
          */
         public String getDisplayName() {
             return "Embed Reports";
-        }
-    }
-
-
-    /**
-     * An action for the publisher. Instances of Action returns by <getProjectActions>
-     * can show up in the Project/Job top-page. The <getIconFileName>, <getDisplayName>,
-     * and <getUrlName> are used to add an item for the action to the left-hand
-     * menu in the Job's page. 
-     *
-     * By extending <ProminentProjectAction>, we are added to the table/list of
-     * prominent links at the top of the Job's page as well.
-     *
-     * If <getIconFileName> returns null, we aren't added to either location.
-     *
-     */
-    public class HtmlAction implements ProminentProjectAction
-    {
-
-        protected AbstractProject fProject;
-        protected FilePath fTargetDir;
-        protected FilePath fTargetFile;
-
-        public HtmlAction(AbstractProject project) {
-            this.fProject = project;
-            FilePath[] paths = EmbedReportPublisher.this.getTargetPaths(this.fProject);
-            this.fTargetDir = paths[0];
-            this.fTargetFile = paths[1];
-        }
-
-        public AbstractProject getProject() {
-            return this.fProject ;
-        }
-
-        public String getIconFileName() {
-            return "graph.gif" ;
-        }
-
-        public String getDisplayName() {
-            return "View " + EmbedReportPublisher.this.getName();
-        }
-
-        public String getUrlName() {
-            //TODO: This is not the right way to create nested URL namespaces. Not sure if I can.
-            //return "embed_report/" + EmbedReportPublisher.this.getName();
-            return "embed-" + EmbedReportPublisher.this.getName();
-        }
-
-        public String getTitle() {
-            return EmbedReportPublisher.this.getName();
-        }
-
-        public String getUrl() {
-            return this.getUrlName();
-        }
-
-        public String getInlineStyle() {
-            return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.this.getHeight() + "px;";
-        }
-
-        /**
-         * Serves the URL subspace specifed by <getUrlName>.
-         */
-        public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-            DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
-                this, this.fTargetFile, EmbedReportPublisher.this.getName(), "graph.gif", true
-            );
-            dbs.generateResponse(req, rsp, this);
         }
     }
 

@@ -8,6 +8,10 @@ target/*
 errors.err
 
 #Vim swap files.
+_.swp
+_.swo
+_.swn
+_.swm
 .*.swp
 .*.swo
 .*.swn
