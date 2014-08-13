@@ -236,7 +236,6 @@ public class EmbedReportPublisher extends Publisher
         }
 
         public String getInlineStyle() {
-            //TODO: Make at least some of this (height) user-configurable.
             return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.this.getHeight() + "px;";
         }
 
