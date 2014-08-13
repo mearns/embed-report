@@ -18,6 +18,7 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.QueryParameter;
@@ -109,6 +110,16 @@ public class EmbedReportPublisher extends Publisher
             return this.association.name();
         }
 
+        public FormValidation doCheckFile(@AncestorInPath AbstractProject project, @QueryParameter String value)
+            throws IOException, ServletException
+        {
+            FilePath ws = project.getSomeWorkspace();
+            if (ws == null) {
+                return FormValidation.ok();
+            }
+            return ws.validateRelativePath(value, false, true);
+        }
+
         @Extension
         public static class DescriptorImpl extends Descriptor<Target> {
             @Override
@@ -185,6 +196,15 @@ public class EmbedReportPublisher extends Publisher
 
             if(!sourceFile.exists()) {
                 listener.error("Specified report file '" + this.file + "' does not exist.");
+                build.setResult(Result.FAILURE);
+                return true;
+            }
+            
+            FilePath ws = build.getWorkspace();
+            //FIXME: XXX: This isn't working right, and validateRelativePath may not even do what I think it does.
+            if(ws.validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
+            {
+                listener.error("Source file is not relative to workspace.");
                 build.setResult(Result.FAILURE);
                 return true;
             }
