@@ -153,9 +153,8 @@ public class EmbedReportPublisher extends Publisher
          * the target directory, the second is the target file itself (i.e., the archived
          * report).
          */
-        protected FilePath[] getTargetPaths(AbstractProject project) {
-            FilePath projRoot = new FilePath(project.getRootDir());
-            FilePath mine = projRoot.child("embed_report");
+        protected FilePath[] getTargetPaths(File rootDir) {
+            FilePath mine = (new FilePath(rootDir)).child("embed_report");
 
             FilePath targetDir = mine.child(this.name);
             FilePath targetFile = targetDir.child((new File(this.file)).getName());
@@ -167,9 +166,12 @@ public class EmbedReportPublisher extends Publisher
             return paths;
         }
 
-        public FilePath getTargetFile(AbstractProject project)
-        {
-            return this.getTargetPaths(project)[1];
+        protected FilePath[] getProjectTargetPaths(AbstractProject project) {
+            return this.getTargetPaths(project.getRootDir());
+        }
+
+        protected FilePath[] getBuildTargetPaths(AbstractBuild build) {
+            return this.getTargetPaths(build.getRootDir());
         }
 
         public FilePath getSourceFile(AbstractProject project)
@@ -194,20 +196,40 @@ public class EmbedReportPublisher extends Publisher
             return workspace.child(this.file);
         }
 
-        public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
+        /**
+         * Copies the report file for archiving in the project of the given build.
+         */
+        protected void archiveProjectFiles(AbstractBuild build, BuildListener listener)
+            throws InterruptedException, IOException
+        {
+            this.archiveFiles(build.getProject().getRootDir(), build, listener);
+        }
+
+        /**
+         * Copies the report file for archiving in the specified build.
+         */
+        protected void archiveBuildFiles(AbstractBuild build, BuildListener listener)
+            throws InterruptedException, IOException
+        {
+            this.archiveFiles(build.getRootDir(), build, listener);
+        }
+
+        /**
+         * Copies the report file from the given build into the specified target directory.
+         */
+        protected void archiveFiles(File rootDir, AbstractBuild build, BuildListener listener)
             throws InterruptedException, IOException
         {
             //All we really need to do is copy the specified file into our target directory.
             FilePath sourceFile = this.getSourceFile(build);
             
-            FilePath[] paths = this.getTargetPaths(build.getProject());
+            FilePath[] paths = this.getTargetPaths(rootDir);
             FilePath targetDir = paths[0];
             FilePath targetFile = paths[1];
 
             if(!sourceFile.exists()) {
                 listener.error("Specified report file '" + this.file + "' does not exist.");
                 build.setResult(Result.FAILURE);
-                return true;
             }
             
             FilePath ws = build.getWorkspace();
@@ -227,9 +249,18 @@ public class EmbedReportPublisher extends Publisher
 
             //Copy to dest
             sourceFile.copyTo(targetFile);
+        }
 
-            //Add the action to the build as well.
-            build.addAction(new HtmlAction(build.getProject()));
+        public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
+            throws InterruptedException, IOException
+        {
+            if(this.association == Association.PROJECT_ONLY || this.association == Association.BOTH) {
+                this.archiveProjectFiles(build, listener);
+            }
+            if(this.association == Association.BUILD_ONLY || this.association == Association.BOTH) {
+                this.archiveBuildFiles(build, listener);
+                build.addAction(new HtmlAction(build));
+            }
 
             return true;
         }
@@ -267,7 +298,15 @@ public class EmbedReportPublisher extends Publisher
             public HtmlAction(AbstractProject project) {
                 this.fProject = project;
 
-                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(project);
+                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(project.getRootDir());
+                this.fTargetDir = paths[0];
+                this.fTargetFile = paths[1];
+            }
+
+            public HtmlAction(AbstractBuild build) {
+                this.fProject = build.getProject();
+
+                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(build.getRootDir());
                 this.fTargetDir = paths[0];
                 this.fTargetFile = paths[1];
             }
