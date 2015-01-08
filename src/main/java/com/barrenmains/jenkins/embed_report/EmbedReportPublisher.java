@@ -174,18 +174,18 @@ public class EmbedReportPublisher extends Publisher
             return this.getTargetPaths(build.getRootDir());
         }
 
-        public FilePath getSourceFile(AbstractProject project)
+        public FilePath[] getSourceFiles(AbstractBuild build, BuildListener listener)
         {
-            return this.getSourceFile(project.getSomeWorkspace());
-        }
+            FilePath workspace = build.getWorkspace();
+            String paths;
+            try {
+                 paths = build.getEnvironment(listener).expand(this.file);
+            } catch (Exception e) {
+                listener.getLogger().println("Failed to resolve parameters in string \""+ this.file + "\" due to following error:\n" + e.getMessage());
+            }
+            //FIXME: XXX: split paths on comma.
+            ////TODO: Use parameters in target as well.
 
-        public FilePath getSourceFile(AbstractBuild build)
-        {
-            return this.getSourceFile(build.getWorkspace());
-        }
-
-        protected FilePath getSourceFile(FilePath workspace)
-        {
             if (workspace == null) {
                 return null;
             }
@@ -193,7 +193,10 @@ public class EmbedReportPublisher extends Publisher
             //TODO: May need to do it directly on this.file, early on.
             //
             //TODO: Enforce it is within the workspace.
-            return workspace.child(this.file);
+            FilePath srcFile = workspace.child(paths);
+            FilePath[] srcFiles = new FilePath[1];
+            srcFiles[0] = srcFile;
+            return srcFiles;
         }
 
         /**
@@ -221,7 +224,9 @@ public class EmbedReportPublisher extends Publisher
             throws InterruptedException, IOException
         {
             //All we really need to do is copy the specified file into our target directory.
-            FilePath sourceFile = this.getSourceFile(build);
+            FilePath[] sourceFiles = this.getSourceFiles(build, listener);
+            //FIXME: Use all source files.
+            FilePath sourceFile = sourceFiles[0];
             
             FilePath[] paths = this.getTargetPaths(rootDir);
             FilePath targetDir = paths[0];
