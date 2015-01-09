@@ -228,6 +228,8 @@ public class EmbedReportPublisher extends Publisher
             //Copy to dest
             sourceFile.copyTo(targetFile);
 
+            //Add the action to the build as well.
+            build.addAction(new HtmlAction(build.getProject()));
 
             return true;
         }
