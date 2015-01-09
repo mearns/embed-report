@@ -59,7 +59,7 @@ public class EmbedReportPublisher extends Publisher
     /**
      * This is the class the implements each of the reports to be generated.
      * Each of the <code>f:repeatable</code> entries from config.jelly will be
-     * used to instantiate one of these, and then a list will be past to the
+     * used to instantiate one of these, and then a list will be passed to the
      * {@link EmbedReportPublisher} constructor.
      */
     public static class Target extends AbstractDescribableImpl<Target>
@@ -110,6 +110,11 @@ public class EmbedReportPublisher extends Publisher
             return this.association.name();
         }
 
+        /**
+         * Validates the file field during project config.
+         *
+         * This verifies that they specified a path relative to workspace.
+         */
         public FormValidation doCheckFile(@AncestorInPath AbstractProject project, @QueryParameter String value)
             throws IOException, ServletException
         {
@@ -127,6 +132,10 @@ public class EmbedReportPublisher extends Publisher
                 return "";
             }
 
+            /**
+             * Populates the option in the 'association' select box field in config.jelly.
+             * Uses the {@link Association} enum.
+             */
             public ListBoxModel doFillAssociationItems()
             {
                 ListBoxModel items = new ListBoxModel();
@@ -188,6 +197,7 @@ public class EmbedReportPublisher extends Publisher
         public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
             throws InterruptedException, IOException
         {
+            //All we really need to do is copy the specified file into our target directory.
             FilePath sourceFile = this.getSourceFile(build);
             
             FilePath[] paths = this.getTargetPaths(build.getProject());
@@ -201,13 +211,13 @@ public class EmbedReportPublisher extends Publisher
             }
             
             FilePath ws = build.getWorkspace();
-            //FIXME: XXX: This isn't working right, and validateRelativePath may not even do what I think it does.
-            if(ws.validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
-            {
-                listener.error("Source file is not relative to workspace.");
-                build.setResult(Result.FAILURE);
-                return true;
-            }
+            //TODO: This isn't working right, and validateRelativePath may not even do what I think it does.
+            //if(ws.validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
+            //{
+            //    listener.error("Source file is not relative to workspace.");
+            //    build.setResult(Result.FAILURE);
+            //    return true;
+            //}
 
             //Make sure output directory exists.
             //TODO: Maybe delete other files in here?
@@ -217,6 +227,7 @@ public class EmbedReportPublisher extends Publisher
 
             //Copy to dest
             sourceFile.copyTo(targetFile);
+
 
             return true;
         }
@@ -230,7 +241,7 @@ public class EmbedReportPublisher extends Publisher
 
 
         /**
-         * An action for the publisher. Instances of Action returns by <getProjectActions>
+         * An action for the publisher. Instances of Action returned by <getProjectActions>
          * can show up in the Project/Job top-page. The <getIconFileName>, <getDisplayName>,
          * and <getUrlName> are used to add an item for the action to the left-hand
          * menu in the Job's page. 
@@ -240,6 +251,9 @@ public class EmbedReportPublisher extends Publisher
          *
          * If <getIconFileName> returns null, we aren't added to either location.
          *
+         * The work of actually embedding it in the job's main page is done in the HtmlAction/jobMain.jelly
+         * file in the resources. That calls through to this classe's {@link getTitle} and {@link getHtml}
+         * methods.
          */
         public class HtmlAction implements ProminentProjectAction
         {
@@ -275,6 +289,9 @@ public class EmbedReportPublisher extends Publisher
                 return "embed-" + EmbedReportPublisher.Target.this.getName();
             }
 
+            /**
+             * The title for the section in which the report is embedded on the main page.
+             */
             public String getTitle() {
                 return EmbedReportPublisher.Target.this.getName();
             }
@@ -283,6 +300,10 @@ public class EmbedReportPublisher extends Publisher
                 return this.getUrlName();
             }
 
+            /**
+             * The style to attach to the iframe from which the report is served when embedded.
+             * Used by {@link getHtml}.
+             */
             public String getInlineStyle() {
                 return "width: 95%; border: 1px solid #666; height: " + EmbedReportPublisher.Target.this.getHeight() + "px;";
             }
@@ -291,6 +312,9 @@ public class EmbedReportPublisher extends Publisher
                 return (this.fTargetFile != null && this.fTargetFile.exists());
             }
 
+            /**
+             * Return the HTML that is embedded in the job main page by the HtmlAction/jobMain.jelly file.
+             */
             public String getHtml() throws IOException, InterruptedException
             {
                 if(this.reportReady()) {
@@ -360,7 +384,7 @@ public class EmbedReportPublisher extends Publisher
     /**
      * Returns a set of actions to be added to the Project's main page.
      * These actions provide behaviors and/or UI components to the Job's top-level
-     * page. See, for instance, <HtmlAction>.
+     * page. See, for instance, {@link HtmlAction}.
      */
     @Override
     public Collection<? extends Action> getProjectActions(AbstractProject project)
