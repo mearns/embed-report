@@ -289,7 +289,7 @@ public class EmbedReportPublisher extends Publisher
             }
             if(this.association == Association.BUILD_ONLY || this.association == Association.BOTH) {
                 this.archiveBuildFiles(build, listener);
-                build.addAction(new HtmlAction(build));
+                build.addAction(new HtmlBuildAction(build));
             }
 
             return true;
@@ -298,7 +298,7 @@ public class EmbedReportPublisher extends Publisher
         public Collection<? extends Action> getProjectActions(AbstractProject project)
         {
             ArrayList<Action> actions = new ArrayList<Action>();
-            actions.add(new HtmlAction(project));
+            actions.add(new HtmlJobAction(project));
             return actions;
         }
 
@@ -318,23 +318,11 @@ public class EmbedReportPublisher extends Publisher
          * file in the resources. That calls through to this classe's {@link getTitle} and {@link getHtml}
          * methods.
          */
-        public class HtmlAction implements ProminentProjectAction
+        public abstract class HtmlAction implements ProminentProjectAction
         {
 
             protected AbstractProject fProject;
             protected FilePath fTargetDir;
-
-            public HtmlAction(AbstractProject project) {
-                this.fProject = project;
-
-                this.fTargetDir = EmbedReportPublisher.Target.this.getProjectTargetDir(project);
-            }
-
-            public HtmlAction(AbstractBuild build) {
-                this.fProject = build.getProject();
-
-                this.fTargetDir = EmbedReportPublisher.Target.this.getBuildTargetDir(build);
-            }
 
             public AbstractProject getProject() {
                 return this.fProject ;
@@ -378,15 +366,20 @@ public class EmbedReportPublisher extends Publisher
                 return (this.fTargetDir != null && this.fTargetDir.exists());
             }
 
+            public abstract boolean embedReport();
+
             /**
              * Return the HTML that is embedded in the job main page by the HtmlAction/jobMain.jelly file.
              */
             public String getHtml() throws IOException, InterruptedException
             {
-                if(this.reportReady()) {
-                    return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
+                if(this.embedReport()) {
+                    if(this.reportReady()) {
+                        return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
+                    }
+                    return "<p class='no-report'>Report not generated.</p>";
                 }
-                return "<p class='no-report'>Report not generated.</p>";
+                return "";
             }
 
             /**
@@ -407,6 +400,35 @@ public class EmbedReportPublisher extends Publisher
                 }
             }
         }
+
+        public class HtmlJobAction extends HtmlAction
+        {
+            public HtmlJobAction(AbstractProject project) {
+                this.fProject = project;
+                this.fTargetDir = EmbedReportPublisher.Target.this.getProjectTargetDir(project);
+            }
+
+            public boolean embedReport()
+            {
+                return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.PROJECT_ONLY
+                    || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
+            }
+        }
+
+        public class HtmlBuildAction extends HtmlAction
+        {
+            public HtmlBuildAction(AbstractBuild build) {
+                this.fProject = build.getProject();
+                this.fTargetDir = EmbedReportPublisher.Target.this.getBuildTargetDir(build);
+            }
+
+            public boolean embedReport()
+            {
+                return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BUILD_ONLY
+                    || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
+            }
+        }
+
 
     }
 

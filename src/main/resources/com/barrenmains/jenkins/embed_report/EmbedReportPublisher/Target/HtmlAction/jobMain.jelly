@@ -1,6 +1,8 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
-    <h2 class='embed-report-title'>${it.getTitle()}</h2>
-    <section class='embed-report job-report'>
-    ${it.getHtml()}
-    </section>
+    <j:if test="${it.embedReport()}">
+        <h2 class='embed-report-title'>${it.getTitle()}</h2>
+        <section class='embed-report job-report'>
+        ${it.getHtml()}
+        </section>
+    </j:if>
 </j:jelly>
