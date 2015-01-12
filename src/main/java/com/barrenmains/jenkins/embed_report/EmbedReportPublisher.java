@@ -289,7 +289,7 @@ public class EmbedReportPublisher extends Publisher
             }
             if(this.association == Association.BUILD_ONLY || this.association == Association.BOTH) {
                 this.archiveBuildFiles(build, listener);
-                build.addAction(new HtmlBuildAction(build));
+                build.addAction(new HtmlAction(build));
             }
 
             return true;
@@ -298,7 +298,7 @@ public class EmbedReportPublisher extends Publisher
         public Collection<? extends Action> getProjectActions(AbstractProject project)
         {
             ArrayList<Action> actions = new ArrayList<Action>();
-            actions.add(new HtmlJobAction(project));
+            actions.add(new HtmlAction(project));
             return actions;
         }
 
@@ -318,9 +318,23 @@ public class EmbedReportPublisher extends Publisher
          * file in the resources. That calls through to this classe's {@link getTitle} and {@link getHtml}
          * methods.
          */
-        public abstract class HtmlAction implements ProminentProjectAction
+        public class HtmlAction implements Action
         {
+            public HtmlAction(AbstractProject project)
+            {
+                this.fProject = project;
+                this.fTargetDir = EmbedReportPublisher.Target.this.getProjectTargetDir(project);
+                this.fForBuild = false;
+            }
 
+            public HtmlAction(AbstractBuild build)
+            {
+                this.fProject = build.getProject();
+                this.fTargetDir = EmbedReportPublisher.Target.this.getBuildTargetDir(build);
+                this.fForBuild = true;
+            }
+
+            protected boolean fForBuild;
             protected AbstractProject fProject;
             protected FilePath fTargetDir;
 
@@ -340,7 +354,11 @@ public class EmbedReportPublisher extends Publisher
             public String getUrlName() {
                 //TODO: This is not the right way to create nested URL namespaces. Not sure if I can.
                 //return "embed_report/" + EmbedReportPublisher.Target.this.getName();
-                return "embed-" + EmbedReportPublisher.Target.this.getName();
+                EmbedReportPublisher.Target self = EmbedReportPublisher.Target.this;
+                if(self == null) {
+                    return null;
+                }
+                return "embed-" + name;
             }
 
             /**
@@ -366,7 +384,16 @@ public class EmbedReportPublisher extends Publisher
                 return (this.fTargetDir != null && this.fTargetDir.exists());
             }
 
-            public abstract boolean embedReport();
+            public boolean embedReport()
+            {
+                if(this.fForBuild)
+                {
+                    return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BUILD_ONLY
+                        || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
+                }
+                return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.PROJECT_ONLY
+                    || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
+            }
 
             /**
              * Return the HTML that is embedded in the job main page by the HtmlAction/jobMain.jelly file.
@@ -375,7 +402,8 @@ public class EmbedReportPublisher extends Publisher
             {
                 if(this.embedReport()) {
                     if(this.reportReady()) {
-                        return "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
+                        return "<a href='" + this.getUrl() + "' title='View report'>view</a><br />\n"
+                            + "<iframe style='" + this.getInlineStyle() + "' src='" + this.getUrl() + "'></iframe>";
                     }
                     return "<p class='no-report'>Report not generated.</p>";
                 }
@@ -400,36 +428,6 @@ public class EmbedReportPublisher extends Publisher
                 }
             }
         }
-
-        public class HtmlJobAction extends HtmlAction
-        {
-            public HtmlJobAction(AbstractProject project) {
-                this.fProject = project;
-                this.fTargetDir = EmbedReportPublisher.Target.this.getProjectTargetDir(project);
-            }
-
-            public boolean embedReport()
-            {
-                return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.PROJECT_ONLY
-                    || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
-            }
-        }
-
-        public class HtmlBuildAction extends HtmlAction
-        {
-            public HtmlBuildAction(AbstractBuild build) {
-                this.fProject = build.getProject();
-                this.fTargetDir = EmbedReportPublisher.Target.this.getBuildTargetDir(build);
-            }
-
-            public boolean embedReport()
-            {
-                return EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BUILD_ONLY
-                    || EmbedReportPublisher.Target.this.association == EmbedReportPublisher.Target.Association.BOTH;
-            }
-        }
-
-
     }
 
     @DataBoundConstructor
