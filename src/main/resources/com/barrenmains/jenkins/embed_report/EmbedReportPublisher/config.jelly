@@ -6,11 +6,19 @@
     <f:entry>
         <f:repeatable field='targets' minimum='1'>
 
-            <f:textbox field='name' default='Report' />
-            <f:textbox field='file' default='report.html' />
-            <f:select field='association' />
+            <f:entry title="Report name">
+                <f:textbox field='name' default='Report' />
+            </f:entry>
+            <f:entry title="Report files">
+                <f:textbox field='file' default='report.html' />
+            </f:entry>
+            <f:entry title="Save for">
+                <f:select field='association' />
+            </f:entry>
 
-            <f:number field='height' default='300' />
+            <f:entry title="IFRAME height">
+                <f:number field='height' default='300' />
+            </f:entry>
 
             <f:repeatableDeleteButton value='Delete report' />
 
