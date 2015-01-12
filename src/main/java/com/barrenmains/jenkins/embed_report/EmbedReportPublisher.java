@@ -232,17 +232,19 @@ public class EmbedReportPublisher extends Publisher
                         listener.error("Specified report file '" + name + "' does not exist.");
                         build.setResult(Result.FAILURE);
                     }
+                    else {
                     
-                    //TODO: This isn't working right, and validateRelativePath may not even do what I think it does.
-                    //if(build.getWorkspace().validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
-                    //{
-                    //    listener.error("Source file is not relative to workspace.");
-                    //    build.setResult(Result.FAILURE);
-                    //    return true;
-                    //}
+                        //TODO: This isn't working right, and validateRelativePath may not even do what I think it does.
+                        //if(build.getWorkspace().validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
+                        //{
+                        //    listener.error("Source file is not relative to workspace.");
+                        //    build.setResult(Result.FAILURE);
+                        //    return true;
+                        //}
 
-                    //Copy to dest
-                    pair.copy();
+                        //Copy to dest
+                        pair.copy();
+                    }
                 }
             }
         }
