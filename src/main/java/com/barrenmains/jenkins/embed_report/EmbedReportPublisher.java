@@ -82,16 +82,34 @@ public class EmbedReportPublisher extends Publisher
 
         public String name;
         public String file;
+        public String additional_files;
+        public String[] fListOfFiles;
         public int height;
         public Association association;
 
         // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
         @DataBoundConstructor
-        public Target(String name, String file, int height, String association) {
+        public Target(String name, String file, String additional_files, int height, String association) {
             this.name = name;
             this.file = file;
             this.height = height;
             this.association = Association.valueOf(association);
+            this.additional_files = additional_files;
+
+            String [] raw = additional_files.split(",");
+            ArrayList<String> all_files = new ArrayList(raw.length+1);
+            all_files.add(this.file);
+            for(String rawName : raw) {
+                rawName = rawName.trim();
+                if(rawName.length() > 0) {
+                    all_files.add(rawName);
+                }
+            }
+            this.fListOfFiles = all_files.toArray(new String[all_files.size()]);
+        }
+
+        public String getAdditionalFiles() {
+            return this.additional_files;
         }
 
         public String getName() {
@@ -148,10 +166,7 @@ public class EmbedReportPublisher extends Publisher
         }
 
         /**
-         * Helper function to get the {@link FilePaths} corresponding to destination
-         * of this target. Returns an array of FilePath objects, the first is
-         * the target directory, the others are the target files themselves (one for
-         * each name specified by {@link getSourceNames}.
+         * Returns the path to the target directory, where all report files are stored.
          */
         protected FilePath getTargetDir(File rootDir) {
             FilePath mine = (new FilePath(rootDir)).child("embed_report");
@@ -165,20 +180,6 @@ public class EmbedReportPublisher extends Publisher
         protected FilePath getBuildTargetDir(AbstractBuild build) {
             return this.getTargetDir(build.getRootDir());
         }
-
-        /**
-         * Returns the names of all the source files, in the order they were given.
-         */
-        public String[] getSourceNames()
-        {
-            String[] raw = this.file.split(",");
-            String[] names = new String[raw.length];
-            for(int i=0; i<raw.length; i++) {
-                names[i] = raw[i].trim();
-            }
-            return names;
-        }
-
 
         /**
          * Returns the file path to the destination file within the given target directory
@@ -224,7 +225,7 @@ public class EmbedReportPublisher extends Publisher
                 targetDir.mkdirs();
             } 
 
-            for(String name : this.getSourceNames())
+            for(String name : this.fListOfFiles)
             { 
                 FilePair pair = this.getSourceAndTarget(targetDir, build, listener, name);
                 if (pair != null) {
@@ -396,7 +397,7 @@ public class EmbedReportPublisher extends Publisher
                     DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
                         this, this.fTargetDir, EmbedReportPublisher.Target.this.getName(), "graph.gif", false
                     );
-                    dbs.setIndexFileName("report.html");
+                    dbs.setIndexFileName(EmbedReportPublisher.Target.this.getFile());
                     dbs.generateResponse(req, rsp, this);
                 } else {
                     PrintWriter writer = rsp.getWriter();
