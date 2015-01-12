@@ -149,55 +149,46 @@ public class EmbedReportPublisher extends Publisher
 
         /**
          * Helper function to get the {@link FilePaths} corresponding to destination
-         * of this target. Returns an array of two FilePath objects, the first is
-         * the target directory, the second is the target file itself (i.e., the archived
-         * report).
+         * of this target. Returns an array of FilePath objects, the first is
+         * the target directory, the others are the target files themselves (one for
+         * each name specified by {@link getSourceNames}.
          */
-        protected FilePath[] getTargetPaths(File rootDir) {
+        protected FilePath getTargetDir(File rootDir) {
             FilePath mine = (new FilePath(rootDir)).child("embed_report");
-
-            FilePath targetDir = mine.child(this.name);
-            FilePath targetFile = targetDir.child((new File(this.file)).getName());
-
-            FilePath[] paths = new FilePath[2];
-            paths[0] = targetDir;
-            paths[1] = targetFile;
-
-            return paths;
+            return mine.child(this.name);
         }
 
-        protected FilePath[] getProjectTargetPaths(AbstractProject project) {
-            return this.getTargetPaths(project.getRootDir());
+        protected FilePath getProjectTargetDir(AbstractProject project) {
+            return this.getTargetDir(project.getRootDir());
         }
 
-        protected FilePath[] getBuildTargetPaths(AbstractBuild build) {
-            return this.getTargetPaths(build.getRootDir());
+        protected FilePath getBuildTargetDir(AbstractBuild build) {
+            return this.getTargetDir(build.getRootDir());
         }
 
-        public FilePath[] getSourceFiles(AbstractBuild build, BuildListener listener)
+        /**
+         * Returns the names of all the source files, in the order they were given.
+         */
+        public String[] getSourceNames()
         {
-            FilePath workspace = build.getWorkspace();
-            String paths;
-            try {
-                 paths = build.getEnvironment(listener).expand(this.file);
-            } catch (Exception e) {
-                listener.getLogger().println("Failed to resolve parameters in string \""+ this.file + "\" due to following error:\n" + e.getMessage());
+            String[] raw = this.file.split(",");
+            String[] names = new String[raw.length];
+            for(int i=0; i<raw.length; i++) {
+                names[i] = raw[i].trim();
             }
-            //FIXME: XXX: split paths on comma.
-            ////TODO: Use parameters in target as well.
-
-            if (workspace == null) {
-                return null;
-            }
-            //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
-            //TODO: May need to do it directly on this.file, early on.
-            //
-            //TODO: Enforce it is within the workspace.
-            FilePath srcFile = workspace.child(paths);
-            FilePath[] srcFiles = new FilePath[1];
-            srcFiles[0] = srcFile;
-            return srcFiles;
+            return names;
         }
+
+
+        /**
+         * Returns the file path to the destination file within the given target directory
+         * to which the specified source file should be copied.
+         */
+        protected FilePath getTargetPath(FilePath targetDir, String name)
+        {
+            return targetDir.child(name);
+        }
+
 
         /**
          * Copies the report file for archiving in the project of the given build.
@@ -224,36 +215,67 @@ public class EmbedReportPublisher extends Publisher
             throws InterruptedException, IOException
         {
             //All we really need to do is copy the specified file into our target directory.
-            FilePath[] sourceFiles = this.getSourceFiles(build, listener);
-            //FIXME: Use all source files.
-            FilePath sourceFile = sourceFiles[0];
             
-            FilePath[] paths = this.getTargetPaths(rootDir);
-            FilePath targetDir = paths[0];
-            FilePath targetFile = paths[1];
-
-            if(!sourceFile.exists()) {
-                listener.error("Specified report file '" + this.file + "' does not exist.");
-                build.setResult(Result.FAILURE);
-            }
+            FilePath targetDir = this.getTargetDir(rootDir);
             
-            FilePath ws = build.getWorkspace();
-            //TODO: This isn't working right, and validateRelativePath may not even do what I think it does.
-            //if(ws.validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
-            //{
-            //    listener.error("Source file is not relative to workspace.");
-            //    build.setResult(Result.FAILURE);
-            //    return true;
-            //}
-
             //Make sure output directory exists.
             //TODO: Maybe delete other files in here?
             if(!targetDir.exists()) {
                 targetDir.mkdirs();
             } 
 
-            //Copy to dest
-            sourceFile.copyTo(targetFile);
+            for(String name : this.getSourceNames())
+            { 
+                FilePair pair = this.getSourceAndTarget(targetDir, build, listener, name);
+                if (pair != null) {
+                    if(!pair.source.exists()) {
+                        listener.error("Specified report file '" + name + "' does not exist.");
+                        build.setResult(Result.FAILURE);
+                    }
+                    
+                    //TODO: This isn't working right, and validateRelativePath may not even do what I think it does.
+                    //if(build.getWorkspace().validateRelativePath(this.file, false, true).kind != FormValidation.Kind.OK)
+                    //{
+                    //    listener.error("Source file is not relative to workspace.");
+                    //    build.setResult(Result.FAILURE);
+                    //    return true;
+                    //}
+
+                    //Copy to dest
+                    pair.copy();
+                }
+            }
+        }
+
+        protected static class FilePair {
+            public FilePath source;
+            public FilePath target;
+
+            public void copy()
+                throws InterruptedException, IOException
+            {
+                this.source.copyTo(this.target);
+            }
+        }
+
+        public FilePair getSourceAndTarget(FilePath targetDir, AbstractBuild build, BuildListener listener, String name)
+        {
+            //TODO: Figure out how to use env vars in the paths. build.getEnvironment(listener).expand(this.file) didn't work.
+            FilePath workspace = build.getWorkspace();
+
+            if (workspace == null) {
+                return null;
+            }
+            //TODO: Use build.getEnvironment(listener).expand(...) to expand env vars in the path.
+            //TODO: May need to do it directly on this.file, early on.
+            //
+            //TODO: Enforce it is within the workspace.
+
+            FilePair pair = new FilePair();
+            pair.source = workspace.child(name);
+            pair.target = this.getTargetPath(targetDir, name);
+            return pair;
+
         }
 
         public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener)
@@ -298,22 +320,17 @@ public class EmbedReportPublisher extends Publisher
 
             protected AbstractProject fProject;
             protected FilePath fTargetDir;
-            protected FilePath fTargetFile;
 
             public HtmlAction(AbstractProject project) {
                 this.fProject = project;
 
-                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(project.getRootDir());
-                this.fTargetDir = paths[0];
-                this.fTargetFile = paths[1];
+                this.fTargetDir = EmbedReportPublisher.Target.this.getProjectTargetDir(project);
             }
 
             public HtmlAction(AbstractBuild build) {
                 this.fProject = build.getProject();
 
-                FilePath[] paths = EmbedReportPublisher.Target.this.getTargetPaths(build.getRootDir());
-                this.fTargetDir = paths[0];
-                this.fTargetFile = paths[1];
+                this.fTargetDir = EmbedReportPublisher.Target.this.getBuildTargetDir(build);
             }
 
             public AbstractProject getProject() {
@@ -355,7 +372,7 @@ public class EmbedReportPublisher extends Publisher
             }
             
             public boolean reportReady() throws IOException, InterruptedException {
-                return (this.fTargetFile != null && this.fTargetFile.exists());
+                return (this.fTargetDir != null && this.fTargetDir.exists());
             }
 
             /**
@@ -375,8 +392,9 @@ public class EmbedReportPublisher extends Publisher
             public void doDynamic(StaplerRequest req, StaplerResponse rsp) throws IOException, InterruptedException, ServletException {
                 if(this.reportReady()) {
                     DirectoryBrowserSupport dbs = new DirectoryBrowserSupport(
-                        this, this.fTargetFile, EmbedReportPublisher.Target.this.getName(), "graph.gif", true
+                        this, this.fTargetDir, EmbedReportPublisher.Target.this.getName(), "graph.gif", false
                     );
+                    dbs.setIndexFileName("report.html");
                     dbs.generateResponse(req, rsp, this);
                 } else {
                     PrintWriter writer = rsp.getWriter();
