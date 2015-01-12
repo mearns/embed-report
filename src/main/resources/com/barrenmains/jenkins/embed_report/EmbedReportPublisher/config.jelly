@@ -3,22 +3,22 @@
     This jelly script is used for per-project configuration.
     -->
 <f:block>
-    <f:entry title="">
+    <f:entry >
       <f:repeatable field="targets" add="Add another report" minimum="1">
         <table width="100%" >
-          <f:entry title="Report name" >
+          <f:entry title="Report name" help="/plugin/embed_report/help-name.html" >
             <f:textbox field='name' default='Report' />
           </f:entry>
 
-            <f:entry title="Report files">
+            <f:entry title="Report files" help="/plugin/embed_report/help-file.html" >
                 <f:textbox field='file' default='report.html' />
             </f:entry>
 
-            <f:entry title="Save for">
+            <f:entry title="Save for" help="/plugin/embed_report/help-association.html" >
                 <f:select field='association' />
             </f:entry>
 
-            <f:entry title="IFRAME height">
+            <f:entry title="IFRAME height" help="/plugin/embed_report/help-height.html" >
                 <f:number field='height' default='300' />
             </f:entry>
 
